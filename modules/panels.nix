@@ -20,13 +20,39 @@ let
         example = {
           General.icon = "nix-snowflake-white";
         };
-        description = "Extra configuration-options for the widget.";
+        description = "Configuration settings for the widget, written using `Applet.writeConfig()`.";
+      };
+      panelConfig = lib.mkOption {
+        type = types.attrsOf formats.json.type;
+        default = { };
+        example = {
+          Configuration.PreloadWeight = "100";
+        };
+        description = "Configuration settings for the widget at the panel level, written using `Applet.writeConfig()`.";
+      };
+      props = lib.mkOption {
+        type = types.attrsOf formats.json.type;
+        default = { };
+        description = "Direct configuration settings for the widget, assigned to the widget object.";
       };
     };
   };
 
   panelType = types.submodule ({ config, options, ... }: {
     options = {
+      config = lib.mkOption {
+        type = types.attrsOf formats.json.type;
+        default = { };
+        example = {
+          General.AppletOrder = "1;2;3;4";
+        };
+        description = "Configuration settings for the panel, written using `Applet.writeConfig()`.";
+      };
+      props = lib.mkOption {
+        type = types.attrsOf formats.json.type;
+        default = { };
+        description = "Direct configuration settings for the widget, assigned to the widget object.";
+      };
       height = lib.mkOption {
         type = types.int;
         default = 32;
@@ -137,7 +163,45 @@ let
         '';
       };
     };
+    config = {
+      props.height = config.height;
+      props.floating = config.floating;
+      props.alignment = lib.mkIf (config.alignment != null) config.alignment;
+      props.hiding = lib.mkIf (config.hiding != null) config.hiding;
+      props.location = lib.mkIf (config.location != null) config.location;
+      props.lengthMode = lib.mkIf (config.lengthMode != null) {
+        _jsType = "eval";
+        script = ''(value) => {_jsType: "if", condition: applicationVersion.split(".")[0] == 6, value}'';
+        value = [ config.lengthMode ];
+      };
+      props.maximumLength = lib.mkIf (config.maxLength != null) config.maxLength;
+      props.minimumLength = lib.mkIf (config.minLength != null) config.minLength;
+      props.offset = lib.mkIf (config.minLength != null) config.offset;
+      config."lastScreen[$i]" = lib.mkIf (config.screen != 0) config.screen;
+    };
   });
+
+  appletSetPropsJs = props: ''
+    ((props) => (applet) => {
+      for (const propKey in props) {
+        handleJsonJsType.call(this, function (prop) { return applet[propKey] = prop; }, props[propKey]);
+      }
+    })(${toJSON props})'';
+
+  appletWriteConfigJs = config: ''
+    ((config) => (applet) => {
+      return writeAppletConfig.call(
+        applet,
+        function (writeConfigCallbackFn, currentConfigGroup, configKey, configValue) {
+          return handleJsonJsType.call(
+            this,
+            function (configValue) { return writeConfigCallbackFn.call(this, configValue); },
+            configValue,
+          );
+        },
+        config,
+      );
+    })(${toJSON config})'';
 
   surroundNonEmptyString = prefix: suffix: str:
     if str != "" then
@@ -208,32 +272,8 @@ let
   panelToLayoutJs = panel: ''
     (() => {
       let panel = new Panel;
-      panel.height = ${toString panel.height};
-      panel.floating = ${boolToString panel.floating};${
-        surroundNonEmptyString "\n  " "\n" (stringIfNotNull panel.alignment
-          ''panel.alignment = ${escapeJsString panel.alignment};'')
-      }${
-        surroundNonEmptyString "\n  " "\n" (stringIfNotNull panel.hiding
-          ''panel.hiding = ${escapeJsString panel.hiding};'')
-      }${
-        surroundNonEmptyString "\n  " "\n" (stringIfNotNull panel.location
-          ''panel.location = ${escapeJsString panel.location};'')
-      }${
-        surroundNonEmptyString "\n  " "\n" (stringIfNotNull panel.lengthMode
-          (plasma6OnlyCmdJs ''panel.lengthMode = ${escapeJsString panel.lengthMode};''))
-      }${
-        surroundNonEmptyString "\n  " "\n" (stringIfNotNull panel.maxLength
-          ''panel.maximumLength = ${toString panel.maxLength};'')
-      }${
-        surroundNonEmptyString "\n  " "\n" (stringIfNotNull panel.minLength
-          ''panel.minimumLength = ${toString panel.minLength};'')
-      }${
-        surroundNonEmptyString "\n  " "\n" (stringIfNotNull panel.offset
-          ''panel.offset = ${toString panel.offset};'')
-      }${
-        surroundNonEmptyString "\n  " "\n" (optionalString (panel.screen != 0)
-          ''panel.writeConfig("lastScreen[$i]", ${toString panel.screen});'')
-      }
+      ${appletSetPropsJs "  " panel.props}(panel);
+      ${appletWriteConfigJs "  " panel.config}(panel);
 
       let panelWidgets = {};${
         surroundNonEmptyString "\n  " "\n" (concatMapStringsSep "\n  "
@@ -262,6 +302,12 @@ in
         [ -f ${config.xdg.configHome}/plasma-org.kde.plasma.desktop-appletsrc ] && rm ${config.xdg.configHome}/plasma-org.kde.plasma.desktop-appletsrc
       '';
       text = ''
+        // Utility functions
+        const plasmaManager = {};
+        void ${readFile ../script/PlasmaShell/typeOf.js}(plasmaManager);
+        void ${readFile ../script/PlasmaShell/handleJsonJsType.js}(plasmaManager);
+        void ${readFile ../script/PlasmaShell/writeAppletConfig.js}(plasmaManager);
+
         // Removes all existing panels
         panels().forEach((panel) => panel.remove());
 
