@@ -181,27 +181,27 @@ let
     };
   });
 
-  appletSetPropsJs = props: ''
+  appletSetPropsJs = indent: props: ''
     ((props) => (applet) => {
-      for (const propKey in props) {
-        handleJsonJsType.call(this, function (prop) { return applet[propKey] = prop; }, props[propKey]);
-      }
-    })(${toJSON props})'';
+    ${indent}  for (const propKey in props) {
+    ${indent}    handleJsonJsType.call(this, function (prop) { return applet[propKey] = prop; }, props[propKey]);
+    ${indent}  }
+    ${indent}})(${toJSON props})'';
 
-  appletWriteConfigJs = config: ''
+  appletWriteConfigJs = indent: config: ''
     ((config) => (applet) => {
-      return writeAppletConfig.call(
-        applet,
-        function (writeConfigCallbackFn, currentConfigGroup, configKey, configValue) {
-          return handleJsonJsType.call(
-            this,
-            function (configValue) { return writeConfigCallbackFn.call(this, configValue); },
-            configValue,
-          );
-        },
-        config,
-      );
-    })(${toJSON config})'';
+    ${indent}  return writeAppletConfig.call(
+    ${indent}    applet,
+    ${indent}    function (writeConfigCallbackFn, currentConfigGroup, configKey, configValue) {
+    ${indent}      return handleJsonJsType.call(
+    ${indent}        this,
+    ${indent}        function (configValue) { return writeConfigCallbackFn.call(this, configValue); },
+    ${indent}        configValue,
+    ${indent}      );
+    ${indent}    },
+    ${indent}    config,
+    ${indent}  );
+    ${indent}})(${toJSON config})'';
 
   surroundNonEmptyString = prefix: suffix: str:
     if str != "" then
@@ -228,64 +228,64 @@ let
 
   # Generate writeConfig calls to include for a widget with additional
   # configurations.
-  widgetWriteConfigJs = widget: group: key: value: ''
+  widgetWriteConfigJs = indent: widget: group: key: value: ''
     ((w) => {
-      w.currentConfigGroup = ${toJsStringList (lib.splitString "/" group)};
-      return w.writeConfig(${escapeJsString key}, ${
+    ${indent}  w.currentConfigGroup = ${toJsStringList (lib.splitString "/" group)};
+    ${indent}  return w.writeConfig(${escapeJsString key}, ${
         if isList value then
           toJsStringList value
         else
           escapeJsString value
       });
-    })(${widget})'';
+    ${indent}})(${widget})'';
   # Generate the text for all of the configuration for a widget with additional
   # configurations.
-  widgetWriteConfigsJs = widget: config: lib.pipe config [
+  widgetWriteConfigsJs = indent: widget: config: lib.pipe config [
     (lib.mapAttrsToList (group: groupAttrs:
-      lib.mapAttrsToList (key: value: "${widgetWriteConfigJs widget group key value};") groupAttrs
+      lib.mapAttrsToList (key: value: "${widgetWriteConfigJs indent widget group key value};") groupAttrs
     ))
     lib.concatLists
-    (concatStringsSep "\n")
+    (concatStringsSep "\n${indent}")
   ];
 
   #
   # Functions to aid us creating a single panel in the layout.js
   #
-  plasma6OnlyCmdJs = cmd: ''
+  plasma6OnlyCmdJs = indent: cmd: ''
     if (applicationVersion.split(".")[0] == 6) {
-      ${cmd}
-    }'';
+    ${indent}  ${cmd}
+    ${indent}}'';
 
-  panelAddWidgetJs = widget: ''panel.addWidget(${escapeJsString widget})'';
+  panelAddWidgetJs = indent: widget: ''panel.addWidget(${escapeJsString widget})'';
 
-  panelAddConfiguredWidgetJs = panelWidgetsJs: widget: ''
+  panelAddConfiguredWidgetJs = indent: panelWidgetsJs: widget: ''
     ((ws) => {
-      const w = ${panelAddWidgetJs widget.name};
-      ws[${escapeJsString widget}] = w;${
-        surroundNonEmptyString "\n  " "\n" (stringIfNotNull widget.config (
-          widgetWriteConfigsJs "ws[${escapeJsString widget.name}]" widget.config
+    ${indent}  const w = ${panelAddWidgetJs "${indent}  " widget.name};
+    ${indent}  ws[${escapeJsString widget}] = w;${
+        surroundNonEmptyString "\n${indent}  " "\n" (stringIfNotNull widget.config (
+          widgetWriteConfigsJs "${indent}  " "ws[${escapeJsString widget.name}]" widget.config
         ))
       }
-      return w;
-    })(${panelWidgetsJs})'';
+    ${indent}  return w;
+    ${indent}})(${panelWidgetsJs})'';
 
   panelToLayoutJs = panel: ''
     (() => {
-      let panel = new Panel;
-      ${appletSetPropsJs "  " panel.props}(panel);
-      ${appletWriteConfigJs "  " panel.config}(panel);
+    ${indent}  let panel = new Panel;
+    ${indent}  ${appletSetPropsJs "${indent}  " panel.props}(panel);
+    ${indent}  ${appletWriteConfigJs "${indent}  " panel.config}(panel);
 
-      let panelWidgets = {};${
-        surroundNonEmptyString "\n  " "\n" (concatMapStringsSep "\n  "
-          (widget: ''${panelAddConfiguredWidgetJs ''panelWidgets'' widget};'')
+    ${indent}  let panelWidgets = {};${
+        surroundNonEmptyString "\n${indent}  " "\n" (concatMapStringsSep "\n${indent}  "
+          (widget: ''${panelAddConfiguredWidgetJs "${indent}  " ''panelWidgets'' widget};'')
           panel.widgets)
       }${
-        surroundNonEmptyString "\n\n  " "\n\n" (stringIfNotNull panel.extraSettings (
+        surroundNonEmptyString "\n\n${indent}  " "\n\n" (stringIfNotNull panel.extraSettings (
           panel.extraSettings
         ))
       }
-      return {panel, panelWidgets};
-    })()'';
+    ${indent}  return {panel, panelWidgets};
+    ${indent}})()'';
 in
 {
   options.programs.plasma.panels = lib.mkOption {
@@ -313,7 +313,7 @@ in
 
         // Adds the panels${
           surroundNonEmptyString "\n" "\n" (concatMapStringsSep "\n"
-            (panel: "${panelToLayoutJs panel};")
+            (panel: "${panelToLayoutJs "" panel};")
             config.programs.plasma.panels)
         }
       '';
