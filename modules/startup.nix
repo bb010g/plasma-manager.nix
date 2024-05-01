@@ -112,7 +112,7 @@ in
             (name: script: createScriptContent "desktop_script_${name}" script.priority
               ''
                 ${script.preCommands}
-                qdbus org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$(cat ${config.xdg.dataHome}/plasma-manager/${cfg.startup.dataDir}/desktop_script_${name}.js)"
+                qdbus org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$(< ${escapeShellArg "${config.xdg.dataHome}/plasma-manager/${cfg.startup.dataDir}/desktop_script_${name}.js"})"
                 ${script.postCommands}
               '')
             cfg.startup.desktopScript) ++
