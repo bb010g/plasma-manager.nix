@@ -22,7 +22,8 @@
 
       # Attribute set of nixpkgs for each system:
       nixpkgsFor = forAllSystems (system:
-        import inputs.nixpkgs { inherit system; });
+        import inputs.nixpkgs { inherit system; }
+      );
     in
     {
       homeManagerModules.plasma-manager = { ... }: {
@@ -30,7 +31,9 @@
       };
 
       packages = forAllSystems (system:
-        let pkgs = nixpkgsFor.${system}; in
+        let
+          pkgs = nixpkgsFor.${system};
+        in
         {
           default = self.packages.${system}.rc2nix;
 
@@ -50,6 +53,44 @@
             runtimeInputs = with pkgs; [ ruby ];
             text = ''ruby ${script/rc2nix.rb} "$@"'';
           };
+
+          workbench = pkgs.kdePackages.callPackage
+            ({
+              extra-cmake-modules,
+              kcrash,
+              kdoctools,
+              ki18n,
+              kirigami,
+              lib,
+              mkKdeDerivation,
+              ninja,
+              qtdeclarative,
+            }:
+
+            mkKdeDerivation {
+              pname = "plasma-manager-workbench";
+              version = "unstable";
+
+              src = ./script/workbench;
+              extraNativeBuildInputs = [
+                kdoctools
+                ninja
+              ];
+              extraBuildInputs = [
+                extra-cmake-modules
+                kcrash
+                ki18n
+                qtdeclarative
+              ];
+
+              meta = {
+                description = "Development tooling for plasma-manager";
+                homepage = "https://github.com/pjones/plasma-manager";
+                license = [ lib.licenses.mit ];
+                maintainers = [ lib.maintainers.bb010g ];
+              };
+            })
+            { };
         });
 
       apps = forAllSystems (system: {

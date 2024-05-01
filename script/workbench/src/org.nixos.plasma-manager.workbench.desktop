@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+
+Name=plasma-manager Workbench
+GenericName=Development tooling for plasma-manager
+Icon=application-x-plasma
+
+Exec=plasma-manager-workbench
+StartupWMClass=plasma-manager-workbench
+X-DocPath=plasma-manager-workbench/index.html
